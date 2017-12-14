@@ -21,11 +21,15 @@ our local machine for development and testing purposes.
 
 ### Installation
 
+In a directory with no spaces in the path, run:
+
 ```
+git clone https://(your_user_id)@bitbucket.org/toyotaau/optical-crawl-diff-tool.git
+cd optical-crawl-diff-tool
 npm install
 ```
 
-And you're done.
+And you're ready.
 
 ### Dev Usage
 
