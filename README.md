@@ -90,16 +90,16 @@ node ocd.js --report toyota.com.au
 node ocd.js --delete toyota.com.au
 ```
 
-### Actions
+## Actions
 
-#### --help (-h)
+### --help (-h)
 **`node ocd.js`** or
 
 **`node ocd.js --help`**
 
 Good to know it's there if you need it.
 
-#### --go (-g)
+### --go (-g)
 **`node ocd.js --go [-f] <domain> [-o <domain>|-O <relative-path>]`**
 
 Crawls a whole website, while capturing reference images to be used as the basis
@@ -115,7 +115,7 @@ does a little `--reference`.
 - Referenced URLs are logged to `./sites/.../referenced-urls.log`.
 - Reference images are saved to `./sites/.../backstop_data/bitmaps_reference/`
 
-#### --crawl (-c)
+### --crawl (-c)
 **`node ocd.js --crawl [-f] <domain> [-o <domain>|-O <relative-path>]`**
 
 Crawls a whole website, starting with the URL you give it. Limits the crawl to
@@ -128,7 +128,7 @@ just the domain of that URL and its subdomains.
 - HTML is logged to `./sites/.../html/`.
 - Crawled URLs are logged to `./sites/.../crawled-urls.log`.
 
-#### --reference (-r)
+### --reference (-r)
 **`node ocd.js --reference [-f] (<domain>|-u <url1> <url2> ...) [-o <domain>|-O <relative-path>]`**
 
 Captures images to be used as the basis for test success or failure.
@@ -139,7 +139,7 @@ Captures images to be used as the basis for test success or failure.
 - Use `-O` to override the directory using a relative path
 - Outputs to `./sites/.../referenced-urls.log` and `./sites/.../backstop_data/bitmaps_reference/`
 
-#### --test (-t)
+### --test (-t)
 **`node ocd.js --test (<domain>|-u <url1> <url2> ...) [-o <domain>|-O <relative-path>]`**
 
 Captures images again, and compares them to the reference images.
@@ -149,7 +149,7 @@ Captures images again, and compares them to the reference images.
 - Use `-O` to override the directory using a relative path
 - Outputs to `./sites/.../tested-urls.log` and `./sites/.../backstop_data/bitmaps_test/<date>-<time>/` 
 
-#### --report (-p)
+### --report (-p)
 **`node ocd.js --report <domain> [-o <domain>|-O <relative-path>]`**
 
 Presents a report for you to inspect the results of the last test, eyeballing 
@@ -158,7 +158,7 @@ the nature of the failures to see if they are "real".
 - Use `-o` to override the directory using a domain name
 - Use `-O` to override the directory using a relative path
 
-#### --approve (-a)
+### --approve (-a)
 **`node ocd.js --approve <domain> [-o <domain>|-O <relative-path>]`**
 
 If all "failures" in the last test were intentional changes, then you should
@@ -168,7 +168,7 @@ of existing reference images.
 - Use `-o` to override the directory using a domain name
 - Use `-O` to override the directory using a relative path
 
-#### --delete (-d)
+### --delete (-d)
 **`node ocd.js --delete <domain> [-o <domain>|-O <relative-path>]`**
 
 Deletes the site directory for the given domain.
@@ -176,10 +176,10 @@ Deletes the site directory for the given domain.
 - Use `-o` to override the directory using a domain name
 - Use `-O` to override the directory using a relative path
 
-#### --version (-v)
+### --version (-v)
 **`node ocd.js --version`**
 
-### Known bugs
+## Known bugs
 
 - Sometimes, some URLs can be skipped during a reference/test. The cause is 
   currently unknown.
@@ -190,7 +190,7 @@ Deletes the site directory for the given domain.
 
 - On Windows, you need to hit ^C after an `--approve`.
 
-### Known limitations
+## Known limitations
 
 * `--crawl` logs to `crawled-urls.log` as it progresses, but `--reference` 
 and test don't log to `referenced-urls.log` / `tested-urls.log` until they
@@ -261,7 +261,7 @@ will be added to `tested-urls.log`.
 
 ## Versioning
 
-Use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/your/project/tags). 
+Use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://bitbucket.org/toyotaau/optical-crawl-diff-tool/downloads/?tab=tags). 
 
 ## Who do I talk to?
 
@@ -269,6 +269,3 @@ Please contact the following people for additional information
 
 * **Martin Funcich** - *Initial work* - [ie_martin](https://bitbucket.org/ie_martin/)
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
