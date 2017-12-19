@@ -3,7 +3,8 @@ var appFilename = 'ocd.js';
 var configFilePath = './backstop.config.js';
 var maxShootBatchSize = 5; // 10 or higher known to give timeouts for batches of heavier pages @ 120000
 var backstopAsyncCaptureLimit = maxShootBatchSize * 2;
-var backstopTimeout = 120000;
+var backstopAsyncCompareLimit = 10;
+var backstopTimeout = 300000;//120000;
 
 var supercrawler = require('supercrawler');
 var fs = require('fs');
@@ -192,7 +193,7 @@ function writeLinesToFile(filePath, stringOrArrayOfLines, onlyWriteLinesNotAlrea
 
 function readLinesFromFile(filePath) {
   var fileContent = fs.readFileSync(filePath, 'utf8');
-  return fileContent.replace(/\n$/, '').split('\n');
+  return fileContent.replace(/[\r\n]?[\r\n]$/, '').split('\n').map(function(el) { return el.replace(/[\r\n]/g, ''); });
 }
 
 function arraySubtract(startEls, toSubtractEls) {
@@ -322,6 +323,7 @@ function crawl(siteDirPath, crawlDomain, crawlStartingUrl, onVisitedHandler) {
       return;
     }
 
+    // TODO: Allow customisation of this
     if (context.url.match(/404\?item/)) {
       consoleLogFromAppAction('-> Aborting - this is a 404 page giving a HTTP 200 response!');
       return;
@@ -482,7 +484,7 @@ function referenceUrlsAction(siteDirPath, urls) {
   });
 }
 
-function testUrlsAction(siteDirPath, urls) {
+function testUrlsAction(siteDirPath, urls, overrideTestUrlDomainAndProtocol) {
   var testedUrlsFilePath = getTestedUrlsLogFilePath(siteDirPath);
 
   deleteIfExists(testedUrlsFilePath, function(filePath) {
@@ -491,6 +493,8 @@ function testUrlsAction(siteDirPath, urls) {
 
   consoleLogFromAppAction('Starting:');
   console.log(urls.join('\n'));
+
+  urls = getTestAndReferenceUrlsUsingReferenceUrls(urls, overrideTestUrlDomainAndProtocol);
 
   shootAndAppendLogUrls(siteDirPath, urls, 'test').then(function() {
     consoleLogFromAppAction('Completed. URLs tested logged to ' + testedUrlsFilePath);
@@ -503,23 +507,40 @@ function testUrlsAction(siteDirPath, urls) {
   });
 }
 
-function createScenario(url) {
+function createScenario(urlTuple) {
   return {
-    'label': url,
-    'url': url
+    'label': urlTuple.referenceUrl, // used to match filenames during comparison
+    'url': urlTuple.testUrl,
+    'referenceUrl': urlTuple.referenceUrl
   };
 }
 
-function shootAndAppendLogUrls(siteDirPath, urls, backstopAction) {
+function normalizeUrlsOrUrlTuplesToUrlTuples(urlsOrUrlTuples) {
+  return urlsOrUrlTuples.map(function(urlOrUrlTuple) {
+    if (typeof urlOrUrlTuple === 'string') {
+      return { 'referenceUrl': urlOrUrlTuple, 'testUrl': urlOrUrlTuple };
+    }
+
+    return urlOrUrlTuple;
+  });
+}
+
+function shootAndAppendLogUrls(siteDirPath, urlsOrUrlTuples, backstopAction) {
   var backstopDataDirPath = getBackstopDataDirPath(siteDirPath);
 
+  var urlTuples = normalizeUrlsOrUrlTuplesToUrlTuples(urlsOrUrlTuples);
+  var referenceUrls = urlTuples.map(function (url) { return url.referenceUrl; });
+  var testUrls = urlTuples.map(function (url) { return url.testUrl; });
+
+  var urlsForDisplay = backstopAction === 'reference' ? referenceUrls : (backstopAction === 'test' ? testUrls : []);
+
   if (!backstopAction) {
-    consoleLogFromAppAction('-> Dry run: BackstopJS suppressed for ' + urls.length + ' URLs (' + urls.join(', ') + ')');
+    consoleLogFromAppAction('-> Dry run: BackstopJS suppressed for ' + urlsForDisplay.length + ' URLs (' + urlsForDisplay.join(', ') + ')');
     consoleLogFromAppAction('   Output target would have been to ' + backstopDataDirPath);
-    return Promise.resolve(urls);
+    return Promise.resolve(urlsOrUrlTuples);
   }
 
-  consoleLogFromAppAction('-> About to run BackstopJS "' + backstopAction + '" for ' + urls.length + ' URLs (' + urls.join(', ') + ')');
+  consoleLogFromAppAction('-> About to run BackstopJS "' + backstopAction + '" for ' + urlsForDisplay.length + ' URLs (' + urlsForDisplay.join(', ') + ')');
   consoleLogFromAppAction('   Outputting to ' + backstopDataDirPath);
 
   fse.ensureDirSync(backstopDataDirPath);
@@ -527,20 +548,21 @@ function shootAndAppendLogUrls(siteDirPath, urls, backstopAction) {
   return backstop(backstopAction, {
     i: true, // i (incremental): do not clear out the reference folder
     config: require(configFilePath)({
-      'scenarios': urls.map(createScenario),
+      'scenarios': urlTuples.map(createScenario),
       'backstopDataPath': backstopDataDirPath.replace(/^\.\//, ''),
       'asyncCaptureLimit': backstopAsyncCaptureLimit,
+      'asyncCompareLimit': backstopAsyncCompareLimit,
       'timeout': backstopTimeout
     })
   }).then(function() {
-    return Promise.resolve(urls);
+    return Promise.resolve(urlsOrUrlTuples);
   }).finally(function() {
     if (backstopAction === 'reference') {
-      writeLinesToFile(getReferencedUrlsLogFilePath(siteDirPath), urls, true);
+      writeLinesToFile(getReferencedUrlsLogFilePath(siteDirPath), referenceUrls, true);
     }
 
     if (backstopAction === 'test') {
-      writeLinesToFile(getTestedUrlsLogFilePath(siteDirPath), urls, true);
+      writeTestUrlsLogFile(getTestedUrlsLogFilePath(siteDirPath), urlTuples);
     }
   });
 }
@@ -581,7 +603,23 @@ function referenceAllCrawledUrlsAction(siteDirPath, force) {
   });
 }
 
-function testAllReferencedUrlsAction(siteDirPath) {
+function getTestAndReferenceUrlsUsingReferenceUrls(referenceUrls, overrideTestUrlDomainAndProtocol) {
+  var overrideProtocol = overrideTestUrlDomainAndProtocol ? getUrlProtocol(overrideTestUrlDomainAndProtocol) : null;
+  var overrideDomain = overrideTestUrlDomainAndProtocol ? getUrlDomain(overrideTestUrlDomainAndProtocol) : null;
+
+  return referenceUrls.map(function (url) {
+    var urlDomain = getUrlDomain(url);
+    var urlProtocol = getUrlProtocol(url);
+    var urlDomainEscaped = urlDomain.replace('.', '\\.');
+    var urlProtocolAndDomainRegex = new RegExp('(http[s]?://)((.*\\.)?' + urlDomainEscaped + ')');
+    return {
+      'referenceUrl': url,
+      'testUrl': url.replace(urlProtocolAndDomainRegex, (overrideProtocol || urlProtocol) + '://' + (overrideDomain || urlDomain) )
+    };
+  });
+}
+
+function testAllReferencedUrlsAction(siteDirPath, overrideTestUrlDomainAndProtocol) {
   var testedUrlsLogFilePath = getTestedUrlsLogFilePath(siteDirPath);
   var referencedUrlsLogFilePath = getReferencedUrlsLogFilePath(siteDirPath);
 
@@ -590,7 +628,8 @@ function testAllReferencedUrlsAction(siteDirPath) {
     process.exit(1);
   }
 
-  var testUrls = readLinesFromFile(referencedUrlsLogFilePath);
+  var referenceUrls = readLinesFromFile(referencedUrlsLogFilePath);
+  var testAndReferenceUrls = getTestAndReferenceUrlsUsingReferenceUrls(referenceUrls, overrideTestUrlDomainAndProtocol);
 
   deleteIfExists(testedUrlsLogFilePath, function(filePath) {
     consoleLogFromAppAction('Removed "' + filePath + '" OK.');
@@ -598,32 +637,47 @@ function testAllReferencedUrlsAction(siteDirPath) {
 
   consoleLogFromAppAction('About to run backstop test');
 
-  shootAndAppendLogUrls(siteDirPath, testUrls, 'test').then(function() {
+  shootAndAppendLogUrls(siteDirPath, testAndReferenceUrls, 'test').then(function() {
     consoleLogFromAppAction('Completed. URLs tested logged to ' + testedUrlsLogFilePath);
-    consoleLogFromAppAction('Run node ' + appFilename + ' --report ' + siteDirPath + ' to view results.');
+    consoleLogFromAppAction('Run node ' + appFilename + ' --report -O ' + siteDirPath + ' to view results.');
     process.exit(0);
   }).catch(function() {
     consoleLogFromAppAction('Some tests failed. URLs tested logged to ' + testedUrlsLogFilePath);
-    consoleLogFromAppAction('Run node ' + appFilename + ' --report ' + siteDirPath + ' to view results.');
+    consoleLogFromAppAction('Run node ' + appFilename + ' --report -O ' + siteDirPath + ' to view results.');
     process.exit(1);
   });
+}
+
+function writeTestUrlsLogFile(testedUrlsLogFilePath, urlTuples) {
+  writeLinesToFile(testedUrlsLogFilePath, urlTuples.map(function(urlTuple) {
+    return urlTuple.referenceUrl + ' -> ' + urlTuple.testUrl;
+  }), true);
+}
+
+function readTestUrlsLogFile(testedUrlsLogFilePath) {
+  return readLinesFromFile(testedUrlsLogFilePath).map(function(testUrlTupleString) {
+    var testUrlTupleStringParts = testUrlTupleString.split(' -> ');
+    return {
+      'referenceUrl': testUrlTupleStringParts[0],
+      'testUrl': testUrlTupleStringParts[1]
+    };
+  })
 }
 
 function reportLastTestAction(siteDirPath) {
   var dataDirPath = getBackstopDataDirPath(siteDirPath);
   var testedUrlsLogFilePath = getTestedUrlsLogFilePath(siteDirPath);
-
-  var testUrlsContent = fs.readFileSync(testedUrlsLogFilePath, 'utf8');
-  var testUrls = testUrlsContent.replace(/\n$/, '').split('\n');
+  var urlTuples = readTestUrlsLogFile(testedUrlsLogFilePath);
 
   consoleLogFromAppAction('About to run backstop openReport');
 
   backstop('openReport', {
     config: require(configFilePath)({
-      'scenarios': testUrls.map(createScenario),
-      'backstopDataPath': dataDirPath.replace(/^\.\//, ''),
-      'asyncCaptureLimit': backstopAsyncCaptureLimit,
-      'timeout': backstopTimeout
+      'scenarios': urlTuples.map(createScenario),
+      'backstopDataPath': dataDirPath.replace(/^\.\//, '')//,
+      // 'asyncCaptureLimit': backstopAsyncCaptureLimit,
+      // 'asyncCompareLimit': backstopAsyncCompareLimit,
+      // 'timeout': backstopTimeout
     })
   }).finally(function() {
     consoleLogFromAppAction('Completed.');
@@ -635,17 +689,17 @@ function approveLastTestAction(siteDirPath) {
   var dataDirPath = getBackstopDataDirPath(siteDirPath);
   var testedUrlsLogFilePath = getTestedUrlsLogFilePath(siteDirPath);
 
-  var testUrlsContent = fs.readFileSync(testedUrlsLogFilePath, 'utf8');
-  var testUrls = testUrlsContent.replace(/\n$/, '').split('\n');
+  var urlTuples = readTestUrlsLogFile(testedUrlsLogFilePath);
 
   consoleLogFromAppAction('About to run backstop approve');
 
   backstop('approve', {
     config: require(configFilePath)({
-      'scenarios': testUrls.map(createScenario),
-      'backstopDataPath': dataDirPath.replace(/^\.\//, ''),
-      'asyncCaptureLimit': backstopAsyncCaptureLimit,
-      'timeout': backstopTimeout
+      'scenarios': urlTuples.map(createScenario),
+      'backstopDataPath': dataDirPath.replace(/^\.\//, '')//,
+      // 'asyncCaptureLimit': backstopAsyncCaptureLimit,
+      // 'asyncCompareLimit': backstopAsyncCompareLimit,
+      // 'timeout': backstopTimeout
     })
   }).finally(function() {
     consoleLogFromAppAction('Completed.');
@@ -704,12 +758,13 @@ function getDisplayActionFromArgs() {
 function getActionFromArgs() {
   argv.option([
     ['-g', '--go', 'bool', 'Crawl from the specified URL while creating reference images'],
-    ['-c', '--crawl', 'bool', 'Crawl from the specified URL (resumes crawl if crawlfile exists)'],
-    ['-r', '--reference', 'bool', 'Create reference images using URLs in the crawlfile'],
+    ['-c', '--crawl', 'bool', 'Crawl from the specified URL (resumes crawl if crawled-urls.log exists)'],
+    ['-r', '--reference', 'bool', 'Create reference images using URLs in the crawled-urls.log'],
     ['-t', '--test', 'bool', 'Test for regressions against all reference images'],
     ['-p', '--report', 'bool', 'Present report for last --test'],
     ['-a', '--approve', 'bool', 'Approve all "fail" images from the last --test and promote them to reference images'],
-    ['-u', '--urls', '[]', '  Reference/test: use exactly the URLs you specify instead of crawlfile'],
+    ['-u', '--urls', '[]', '  Reference/test: use exactly the URLs you specify instead of crawled-urls.log'],
+    ['-x', '--against', 'string', '  Test: run the --test against a different domain'],
     ['-f', '--force', 'bool', '  Crawl/go: Deletes the site output directory before crawling from scratch'],
     ['-o', '--output-dir-from-domain', 'string', '  Override site output directory (e.g. specify toyota.com.au to output to toyota_com_au)'],
     ['-O', '--output-dir', 'string', '  Override site output directory directly (e.g. specify ./toyota_com_au)'],
@@ -768,7 +823,7 @@ function getActionFromArgs() {
     }
 
     if (argv.get('-t')) {
-      return testUrlsAction.bind(undefined, siteDirPath, urls);
+      return testUrlsAction.bind(undefined, siteDirPath, urls, argv.get('-x'));
     }
 
     consoleLogFromAppAction('ERROR: The --urls switch only applies to reference or test.');
@@ -801,7 +856,7 @@ function getActionFromArgs() {
     }
 
     if (argv.get('-t')) {
-      return testAllReferencedUrlsAction.bind(undefined, siteDirPath);
+      return testAllReferencedUrlsAction.bind(undefined, siteDirPath, argv.get('-x'));
     }
 
     if (argv.get('-p')) {
