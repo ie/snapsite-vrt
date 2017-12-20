@@ -406,8 +406,9 @@ function crawlAndReferenceAction(siteDirPath, crawlStartingUrl, force) {
     }
 
     return doCrawlAndReference();
+  } else {
+    return doCrawlAndReference();
   }
-
 }
 
 function crawlAndMaybeReference(siteDirPath, crawlStartingUrl, force, crawlOnly) {
