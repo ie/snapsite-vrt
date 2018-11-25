@@ -188,8 +188,6 @@ Deletes the site directory for the given domain.
 `referenced-urls.log`. As a workaround you can use `--reference -u url1 url2
 ... -o toyota.com.au` to redo just those references.
 
-- On Windows, you need to hit ^C after an `--approve`.
-
 ## Known limitations
 
 * `--crawl` logs to `crawled-urls.log` as it progresses, but `--reference` 
