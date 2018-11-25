@@ -667,24 +667,13 @@ function readTestUrlsLogFile(testedUrlsLogFilePath) {
 
 function reportLastTestAction(siteDirPath) {
   var dataDirPath = getBackstopDataDirPath(siteDirPath);
-  var testedUrlsLogFilePath = getTestedUrlsLogFilePath(siteDirPath);
-
-  if (!fs.existsSync(testedUrlsLogFilePath)) {
-    consoleLogFromAppAction('Could not find file "' + testedUrlsLogFilePath + '". Have you run --test?');
-    exitCleanly(1);
-  }
-
-  var urlTuples = readTestUrlsLogFile(testedUrlsLogFilePath);
 
   consoleLogFromAppAction('About to run backstop openReport');
 
   backstop('openReport', {
     config: require(configFilePath)({
-      'scenarios': urlTuples.map(createScenario),
-      'backstopDataPath': dataDirPath.replace(/^\.\//, '')//,
-      // 'asyncCaptureLimit': backstopAsyncCaptureLimit,
-      // 'asyncCompareLimit': backstopAsyncCompareLimit,
-      // 'timeout': backstopTimeout
+      'backstopDataPath': dataDirPath.replace(/^\.\//, ''),
+      'scenarios': []
     })
   }).finally(function() {
     consoleLogFromAppAction('Completed.');
