@@ -697,10 +697,7 @@ function approveLastTestAction(siteDirPath) {
   backstop('approve', {
     config: require(configFilePath)({
       'scenarios': urlTuples.map(createScenario),
-      'backstopDataPath': dataDirPath.replace(/^\.\//, '')//,
-      // 'asyncCaptureLimit': backstopAsyncCaptureLimit,
-      // 'asyncCompareLimit': backstopAsyncCompareLimit,
-      // 'timeout': backstopTimeout
+      'backstopDataPath': dataDirPath.replace(/^\.\//, '')
     })
   }).finally(function() {
     consoleLogFromAppAction('Completed.');
