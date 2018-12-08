@@ -1,7 +1,6 @@
-# Snapsite
+![Snapsite](docs/images/snapsite-logo.png)
+
 **Visual regression test your whole website.**
- 
-Snapsite is designed to be as "point and shoot" as possible:
 
 - Snapshot your site for the first time with `--go`.
 - Come back later and `--test`.
