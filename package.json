@@ -1,14 +1,14 @@
 {
-  "name": "vrt",
-  "version": "1.0.1",
-  "description": "OCD - Optical Crawl & Diff",
+  "name": "snapsite",
+  "version": "1.0.2",
+  "description": "Snapsite - Visual regression test your whole website",
   "main": "index.js",
   "private": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Martin Funcich",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "backstopjs": "^3.0.36",
     "bluebird": "^3.5.1",

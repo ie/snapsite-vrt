@@ -1,5 +1,6 @@
-var appTitle = 'ocd';
-var appFilename = 'ocd.js';
+#!/usr/bin/env node
+'use strict';
+
 var configFilePath = './backstop.config.js';
 var maxShootBatchSize = 5; // 10 or higher known to give timeouts for batches of heavier pages @ 120000
 var backstopAsyncCaptureLimit = maxShootBatchSize * 2;
@@ -14,6 +15,18 @@ var backstop = require('backstopjs');
 var nodejs_argv = require("nodejs-argv");
 var Promise = require("bluebird");
 
+var appContext = {
+  appTitle: 'Snapsite',
+  appFilename: 'snapsite.js',
+  displayAction: '' // Stuff both SIGINT and console log needs to access
+};
+
+var argv = nodejs_argv.new();
+
+var consoleLogFromAppAction = require('./modules/console-log-from-app-action')(appContext);
+var helpAction = require('./modules/help')(appContext, argv);
+var versionAction = require('./modules/version')(appContext, argv);
+
 var overrideDomainForSiteDirPath;
 var overrideSiteDirPath;
 
@@ -23,43 +36,6 @@ var batchOfReferenceUrls;
 
 // Stuff both SIGINT and console log needs to access
 var displayAction;
-
-var argv = nodejs_argv.new();
-
-function consoleLogFromAppAction(message) {
-  console.log(appTitle + (displayAction ? (' ' + displayAction) : '') + ': ' + message);
-}
-
-function helpAction() {
-  consoleLogFromAppAction('');
-  console.log(argv.help() );
-  console.log();
-  console.log('Examples:');
-  console.log('');
-  console.log('  Crawl and create reference images for all of toyota.com.au to ./toyota_com_au (~2hrs 20min):');
-  console.log('  node ' + appFilename + ' -r toyota.com.au');
-  console.log('');
-  console.log('  Test images for all of toyota.com.au, and compare to reference images:');
-  console.log('  node ' + appFilename + ' -t toyota.com.au');
-  console.log('');
-  console.log('  Present report for last test against toyota.com.au:');
-  console.log('  node ' + appFilename + ' -p toyota.com.au');
-  console.log('');
-  console.log('  Approve most recent test failures on toyota.com.au:');
-  console.log('  node ' + appFilename + ' -a toyota.com.au');
-  console.log('');
-  console.log('  Delete the toyota_com_au directory:');
-  console.log('  node ' + appFilename + ' -d toyota.com.au');
-  console.log('');
-  console.log('  Test only https://www.toyota.com.au/prius-v (but output to ./toyota_com_au rather than ./www_toyota_com_au):');
-  console.log('  node ' + appFilename + ' -t -u https://www.toyota.com.au/prius-v -o toyota.com.au');
-  process.exit(0);
-}
-
-function versionAction() {
-  consoleLogFromAppAction(argv.version());
-  process.exit(0);
-}
 
 function getSiteDirPath(domain) {
   if (overrideSiteDirPath) {
@@ -220,9 +196,9 @@ function deleteSiteOutputDirAction(url) {
 
   if (!domain) {
     consoleLogFromAppAction('A valid URL or domain must be specified.');
-    console.log('e.g. node ' + appFilename + ' -d http://toyota.com.au/');
-    console.log('  or node ' + appFilename + ' -d toyota.com.au');
-    process.exit(1);
+    console.log('e.g. node ' + appContext.appFilename + ' -d http://examplesite.com.au/');
+    console.log('  or node ' + appContext.appFilename + ' -d examplesite.com.au');
+    exitCleanly(1);
   }
 
   consoleLogFromAppAction('Removing site output directory for ' + domain);
@@ -230,7 +206,7 @@ function deleteSiteOutputDirAction(url) {
   var siteDirPath = getSiteDirPath(domain);
   deleteDir(siteDirPath, 'delete');
 
-  process.exit(0);
+  exitCleanly(0);
 }
 
 function deleteDir(dirPath) {
@@ -315,7 +291,7 @@ function crawl(siteDirPath, crawlDomain, crawlStartingUrl, onVisitedHandler) {
    
   // Custom content handler for HTML pages. 
   crawler.addHandler("text/html", function (context) {
-    // Restrict at the screenshot level to *.toyota.com.au or toyota.com.au itself
+    // Restrict at the screenshot level to *.examplesite.com.au or examplesite.com.au itself
     var urlDomain = getUrlDomain(context.url);
     var crawlDomainEscaped = crawlDomain.replace('.', '\\.');
     var crawlDomainRegex = new RegExp('^((.*\\.)?' + crawlDomainEscaped + ')$');
@@ -374,7 +350,7 @@ function saveAsFile(siteDirPath, context) {
 
 function crawlAction(siteDirPath, crawlStartingUrl, force) {
   crawlAndMaybeReference(siteDirPath, crawlStartingUrl, force, true).then(function() {
-    process.exit(0);
+    exitCleanly(0);
   });
 }
 
@@ -387,7 +363,7 @@ function crawlAndReferenceAction(siteDirPath, crawlStartingUrl, force) {
   function doCrawlAndReference() {
     return crawlAndMaybeReference(siteDirPath, crawlStartingUrl, force, false).then(function() {
       consoleLogFromAppAction('Completed crawl and reference');
-      process.exit(0);
+      exitCleanly(0);
     });
   }
 
@@ -416,8 +392,8 @@ function crawlAndMaybeReference(siteDirPath, crawlStartingUrl, force, crawlOnly)
 
   if (!crawlStartingUrl) {
     consoleLogFromAppAction('A valid crawl starting URL must be specified.');
-    console.log('e.g. node ' + appFilename + ' --' + displayAction +' http://toyota.com.au/');
-    process.exit(1);
+    console.log('e.g. node ' + appContext.appFilename + ' --' + appContext.displayAction +' http://examplesite.com.au/');
+    exitCleanly(1);
   }
 
   if (crawlStartingUrl !== getFirstUrlFromArgv()) {
@@ -429,7 +405,7 @@ function crawlAndMaybeReference(siteDirPath, crawlStartingUrl, force, crawlOnly)
   }
 
   if (crawlOnly) {
-    consoleLogFromAppAction('' + appTitle + ' will now crawl the site and log URLs to the crawl database. You can run Backstop against all crawled URLs using the --reference action.');
+    consoleLogFromAppAction(appContext.appTitle + ' will now crawl the site and log URLs to the crawl database. You can run Backstop against all crawled URLs using the --reference action.');
   }
 
   batchOfReferenceUrls = [];
@@ -481,7 +457,7 @@ function referenceUrlsAction(siteDirPath, urls) {
 
   shootAndAppendLogUrls(siteDirPath, urls, 'reference').then(function() {
     consoleLogFromAppAction('Completed. URLs referenced logged to ' + getReferencedUrlsLogFilePath(siteDirPath));
-    process.exit(0);
+    exitCleanly(0);
   });
 }
 
@@ -499,12 +475,12 @@ function testUrlsAction(siteDirPath, urls, overrideTestUrlDomainAndProtocol) {
 
   shootAndAppendLogUrls(siteDirPath, urls, 'test').then(function() {
     consoleLogFromAppAction('Completed. URLs tested logged to ' + testedUrlsFilePath);
-    consoleLogFromAppAction('Run node.js ' + appFilename + ' --report to view results.');
-    process.exit(0);
+    consoleLogFromAppAction('Run node.js ' + appContext.appFilename + ' --report to view results.');
+    exitCleanly(0);
   }).catch(function() {
     consoleLogFromAppAction('Some tests failed. URLs tested logged to ' + testedUrlsFilePath);
-    consoleLogFromAppAction('Run node.js ' + appFilename + ' --report to view results.');
-    process.exit(1);
+    consoleLogFromAppAction('Run node.js ' + appContext.appFilename + ' --report to view results.');
+    exitCleanly(1);
   });
 }
 
@@ -595,12 +571,12 @@ function referenceAllCrawledUrlsAction(siteDirPath, force) {
     console.log('- Try the --force flag to re-reference all crawled URLs anyway');
     console.log('- Complete any unfinished crawl using --crawl');
     console.log('- Force a crawl from scratch with --crawl -f');
-    process.exit(0);
+    exitCleanly(0);
   }
 
   shootAndAppendLogUrls(siteDirPath, referenceUrls, 'reference').then(function() {
     consoleLogFromAppAction('Completed. URLs referenced logged to ' + referencedUrlsLogFilePath);
-    process.exit(0);
+    exitCleanly(0);
   });
 }
 
@@ -626,7 +602,7 @@ function testAllReferencedUrlsAction(siteDirPath, overrideTestUrlDomainAndProtoc
 
   if (!fs.existsSync(referencedUrlsLogFilePath)) {
     consoleLogFromAppAction('Could not find required file' + referencedUrlsLogFilePath);
-    process.exit(1);
+    exitCleanly(1);
   }
 
   var referenceUrls = readLinesFromFile(referencedUrlsLogFilePath);
@@ -640,12 +616,12 @@ function testAllReferencedUrlsAction(siteDirPath, overrideTestUrlDomainAndProtoc
 
   shootAndAppendLogUrls(siteDirPath, testAndReferenceUrls, 'test').then(function() {
     consoleLogFromAppAction('Completed. URLs tested logged to ' + testedUrlsLogFilePath);
-    consoleLogFromAppAction('Run node ' + appFilename + ' --report -O ' + siteDirPath + ' to view results.');
-    process.exit(0);
+    consoleLogFromAppAction('Run node ' + appContext.appFilename + ' --report -O ' + siteDirPath + ' to view results.');
+    exitCleanly(0);
   }).catch(function() {
     consoleLogFromAppAction('Some tests failed. URLs tested logged to ' + testedUrlsLogFilePath);
-    consoleLogFromAppAction('Run node ' + appFilename + ' --report -O ' + siteDirPath + ' to view results.');
-    process.exit(1);
+    consoleLogFromAppAction('Run node ' + appContext.appFilename + ' --report -O ' + siteDirPath + ' to view results.');
+    exitCleanly(1);
   });
 }
 
@@ -667,28 +643,28 @@ function readTestUrlsLogFile(testedUrlsLogFilePath) {
 
 function reportLastTestAction(siteDirPath) {
   var dataDirPath = getBackstopDataDirPath(siteDirPath);
-  var testedUrlsLogFilePath = getTestedUrlsLogFilePath(siteDirPath);
-  var urlTuples = readTestUrlsLogFile(testedUrlsLogFilePath);
 
   consoleLogFromAppAction('About to run backstop openReport');
 
   backstop('openReport', {
     config: require(configFilePath)({
-      'scenarios': urlTuples.map(createScenario),
-      'backstopDataPath': dataDirPath.replace(/^\.\//, '')//,
-      // 'asyncCaptureLimit': backstopAsyncCaptureLimit,
-      // 'asyncCompareLimit': backstopAsyncCompareLimit,
-      // 'timeout': backstopTimeout
+      'backstopDataPath': dataDirPath.replace(/^\.\//, ''),
+      'scenarios': []
     })
   }).finally(function() {
     consoleLogFromAppAction('Completed.');
-    process.exit(0);
+    exitCleanly(0);
   });
 }
 
 function approveLastTestAction(siteDirPath) {
   var dataDirPath = getBackstopDataDirPath(siteDirPath);
   var testedUrlsLogFilePath = getTestedUrlsLogFilePath(siteDirPath);
+
+  if (!fs.existsSync(testedUrlsLogFilePath)) {
+    consoleLogFromAppAction('Could not find file "' + testedUrlsLogFilePath + '". Have you run --test?');
+    exitCleanly(1);
+  }
 
   var urlTuples = readTestUrlsLogFile(testedUrlsLogFilePath);
 
@@ -697,14 +673,11 @@ function approveLastTestAction(siteDirPath) {
   backstop('approve', {
     config: require(configFilePath)({
       'scenarios': urlTuples.map(createScenario),
-      'backstopDataPath': dataDirPath.replace(/^\.\//, '')//,
-      // 'asyncCaptureLimit': backstopAsyncCaptureLimit,
-      // 'asyncCompareLimit': backstopAsyncCompareLimit,
-      // 'timeout': backstopTimeout
+      'backstopDataPath': dataDirPath.replace(/^\.\//, '')
     })
   }).finally(function() {
     consoleLogFromAppAction('Completed.');
-    process.exit(0);
+    exitCleanly(0);
   });
 }
 
@@ -720,6 +693,7 @@ function getDisplayActionFromArgs() {
       '-d',
       '-v',
       '-h',
+      '-i',
       '--go',
       '--crawl',
       '--reference',
@@ -728,7 +702,8 @@ function getDisplayActionFromArgs() {
       '--approve',
       '--delete',
       '--version',
-      '--help'
+      '--help',
+      '--init'
     ].indexOf(el) >= 0; });
 
   var shortToLongMap = {
@@ -740,7 +715,8 @@ function getDisplayActionFromArgs() {
     '-a': '--approve',
     '-d': '--delete',
     '-v': '--version',
-    '-h': '--help'
+    '-h': '--help',
+    '-i': '--init'
   };
 
   var displayAction = rawAction;
@@ -767,8 +743,8 @@ function getActionFromArgs() {
     ['-u', '--urls', '[]', '  Reference/test: use exactly the URLs you specify instead of crawled-urls.log'],
     ['-x', '--against', 'string', '  Test: run the --test against a different domain'],
     ['-f', '--force', 'bool', '  Crawl/go: Deletes the site output directory before crawling from scratch'],
-    ['-o', '--output-dir-from-domain', 'string', '  Override site output directory (e.g. specify toyota.com.au to output to toyota_com_au)'],
-    ['-O', '--output-dir', 'string', '  Override site output directory directly (e.g. specify ./toyota_com_au)'],
+    ['-o', '--output-dir-from-domain', 'string', '  Override site output directory (e.g. specify examplesite.com.au to output to examplesite_com_au)'],
+    ['-O', '--output-dir', 'string', '  Override site output directory directly (e.g. specify ./examplesite_com_au)'],
     ['-d', '--delete', 'bool', 'Delete all the data for the specified site'],
     ['-v', '--version', 'bool', 'Display version'],
     ['-h', '--help', 'Display help']
@@ -777,17 +753,17 @@ function getActionFromArgs() {
   try {
     argv.parse();
   } catch (e) {
-    console.log(appTitle + ': Error:', e);
+    console.log(appContext.appTitle + ': Error:', e);
   }
 
-  displayAction = getDisplayActionFromArgs();
+  appContext.displayAction = getDisplayActionFromArgs();
 
   if (argv.get('-v')) {
-    return versionAction;
+    return versionAction();
   }
 
   if (argv.get('-h')) {
-    return helpAction;
+    return helpAction();
   }
 
   if (argv.get('-d')) {
@@ -811,8 +787,8 @@ function getActionFromArgs() {
 
     if (!firstUrl) {
       consoleLogFromAppAction('This action requires at least one URL to be specified');
-      console.log('e.g. node ' + appFilename + ' ' + displayAction + ' http://toyota.com.au http://toyota.com.au/86');
-      process.exit(1);
+      console.log('e.g. node ' + appContext.appFilename + ' ' + appContext.displayAction + ' http://examplesite.com.au http://examplesite.com.au/86');
+      exitCleanly(1);
     }
 
     var urls = argv.get('-u').map(normalizeUrl);
@@ -827,18 +803,20 @@ function getActionFromArgs() {
       return testUrlsAction.bind(undefined, siteDirPath, urls, argv.get('-x'));
     }
 
-    consoleLogFromAppAction('ERROR: The --urls switch only applies to reference or test.');
-    console.log('e.g. node ' + appFilename + ' --reference -u toyota.com.au http://greenwoodcity.com');
-    process.exit(1);
+    consoleLogFromAppAction('ERROR: The --urls switch only applies to --reference or --test.');
+    console.log('e.g. node ' + appContext.appFilename + ' --reference -u examplesite.com.au http://greenwoodcity.com');
+    exitCleanly(1);
   }
 
-  if (argv.get('-g') || argv.get('-r') || argv.get('-t') || argv.get('-a') || argv.get('-p') || argv.get('-c')) {
+  var isSiteDirRequiredByAction = argv.get('-g') || argv.get('-r') || argv.get('-t') || argv.get('-a') || argv.get('-p') || argv.get('-c');
+
+  if (isSiteDirRequiredByAction) {
     firstUrl = getFirstUrlFromArgvNormalized();
 
     if (!firstUrl) {
       consoleLogFromAppAction('This action requires a domain to be specified');
-      console.log('e.g. node ' + appFilename + ' ' + displayAction + ' toyota.com.au');
-      process.exit(1);
+      console.log('e.g. node ' + appContext.appFilename + ' ' + appContext.displayAction + ' examplesite.com.au');
+      exitCleanly(1);
     }
 
     domain = getUrlDomain(firstUrl);
@@ -875,8 +853,10 @@ function getActionFromArgs() {
 // Allow SIGINT (^C / break) handling on Windows
 // TODO: Suppress this for quick actions such as "report" or "approve"
 
+var rl;
+
 if (process.platform === "win32") {
-  var rl = require("readline").createInterface({
+  rl = require("readline").createInterface({
     input: process.stdin,
     output: process.stdout
   });
@@ -886,19 +866,29 @@ if (process.platform === "win32") {
   });
 }
 
+function exitCleanly(exitCode) {
+  if (rl) {
+    rl.close();
+  }
+
+  if (exitCode) {
+    process.exit(exitCode);
+  }
+}
+
 process.on("SIGINT", function () {
   console.log();
   consoleLogFromAppAction('Interrupted by user');
 
-  if (displayAction === 'go' && batchOfReferenceUrls.length) {
+  if (appContext.displayAction === 'go' && batchOfReferenceUrls.length) {
     console.log();
     console.log('This batch of reference images did not complete but has already been crawled:\n  ' + batchOfReferenceUrls.join('\n  '));
     console.log();
     console.log('To recover from this condition, resume the crawl and reference with:');
-    console.log('     node ' + appFilename + ' -g');
+    console.log('     node ' + appContext.appFilename + ' -g');
   }
 
-  process.exit(0);
+  exitCleanly(1);
 });
 
 var action = getActionFromArgs();

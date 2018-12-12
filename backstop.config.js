@@ -20,7 +20,7 @@ module.exports = function(options) {
   });
 
   return {
-    "id": "toyota_screens",
+    "id": "examplesite_screens",
     "viewports": [
       {
         "label": "phone-320",
